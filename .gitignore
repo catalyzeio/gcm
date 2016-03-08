@@ -1,0 +1,10 @@
+.DS_Store
+.idea
+*.pyc
+*.egg-info
+build
+*.deb
+.goxc.local.json
+builds/
+build/
+public/
