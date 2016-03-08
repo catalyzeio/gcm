@@ -12,12 +12,12 @@ import (
 )
 
 const (
-	keySize = 32
-	ivSize  = 12
+	keySize   = 32
+	chunkSize = 1024 * 1024 // 1 MB
 )
 
 var (
-	logger = log.New(os.Stderr, "", log.LstdFlags)
+	logger = log.New(os.Stderr, "GCM ", log.LstdFlags)
 
 	encrypt    bool
 	decrypt    bool
@@ -62,7 +62,7 @@ func encryptFile(inFilePath, outFilePath string, key []byte) error {
 		return err
 	}
 
-	outFile, err := os.Open(outFilePath)
+	outFile, err := os.OpenFile(outFilePath, os.O_CREATE|os.O_RDWR, 0600)
 	defer outFile.Close()
 	if err != nil {
 		return err
@@ -79,8 +79,8 @@ func encryptFile(inFilePath, outFilePath string, key []byte) error {
 
 	var counter uint64
 	for {
-		iv := counterToIV(counter)
-		chunk := make([]byte, aes.BlockSize())
+		iv := counterToIV(counter, gcm.NonceSize())
+		chunk := make([]byte, chunkSize)
 		read, _ := inFile.Read(chunk)
 		if read == 0 {
 			break
@@ -106,7 +106,7 @@ func decryptFile(inFilePath, outFilePath string, key []byte) error {
 		return err
 	}
 
-	outFile, err := os.Open(outFilePath)
+	outFile, err := os.OpenFile(outFilePath, os.O_CREATE|os.O_RDWR, 0600)
 	defer outFile.Close()
 	if err != nil {
 		return err
@@ -123,8 +123,8 @@ func decryptFile(inFilePath, outFilePath string, key []byte) error {
 
 	var counter uint64
 	for {
-		iv := counterToIV(counter)
-		chunk := make([]byte, aes.BlockSize())
+		iv := counterToIV(counter, gcm.NonceSize())
+		chunk := make([]byte, chunkSize+gcm.Overhead())
 		read, _ := inFile.Read(chunk)
 		if read == 0 {
 			break
@@ -139,8 +139,8 @@ func decryptFile(inFilePath, outFilePath string, key []byte) error {
 	return nil
 }
 
-func counterToIV(counter uint64) []byte {
-	b := make([]byte, ivSize)
+func counterToIV(counter uint64, size int) []byte {
+	b := make([]byte, size)
 	binary.LittleEndian.PutUint64(b, counter)
 	return b
 }
