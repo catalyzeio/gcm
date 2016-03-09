@@ -39,16 +39,16 @@ func main() {
 		logger.Fatalln("Invalid key. Must be a valid %d byte hex encoded string\n", keySize)
 	}
 	if encrypt {
-		err = encryptFile(inputPath, outputPath, key)
+		err = encryptFile(inputPath, outputPath, key, make([]byte, 12), []byte("catalyze"))
 	} else if decrypt {
-		err = decryptFile(inputPath, outputPath, key)
+		err = decryptFile(inputPath, outputPath, key, make([]byte, 12), []byte("catalyze"))
 	}
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
 }
 
-func encryptFile(inFilePath, outFilePath string, key []byte) error {
+func encryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 	if _, err := os.Stat(inFilePath); os.IsNotExist(err) {
 		return fmt.Errorf("A file does not exist at %s", inFilePath)
 	}
@@ -72,27 +72,25 @@ func encryptFile(inFilePath, outFilePath string, key []byte) error {
 	if err != nil {
 		return err
 	}
-	gcm, err := cipher.NewGCM(aes)
+	gcm, err := cipher.NewGCMWithNonceSize(aes, len(iv))
 	if err != nil {
 		return err
 	}
 
-	var counter uint64
 	for {
-		iv := counterToIV(counter, gcm.NonceSize())
 		chunk := make([]byte, chunkSize)
 		read, _ := inFile.Read(chunk)
+		encrChunk := gcm.Seal(nil, iv, chunk[:read], aad)
+		outFile.Write(encrChunk)
 		if read == 0 {
 			break
 		}
-		encrChunk := gcm.Seal(nil, iv, chunk[:read], []byte("catalyzecatalyze"))
-		outFile.Write(encrChunk)
-		counter++
+		iv = incrementIV(iv)
 	}
 	return nil
 }
 
-func decryptFile(inFilePath, outFilePath string, key []byte) error {
+func decryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 	if _, err := os.Stat(inFilePath); os.IsNotExist(err) {
 		return fmt.Errorf("A file does not exist at %s", inFilePath)
 	}
@@ -116,32 +114,33 @@ func decryptFile(inFilePath, outFilePath string, key []byte) error {
 	if err != nil {
 		return err
 	}
-	gcm, err := cipher.NewGCM(aes)
+	gcm, err := cipher.NewGCMWithNonceSize(aes, len(iv))
 	if err != nil {
 		return err
 	}
 
-	var counter uint64
 	for {
-		iv := counterToIV(counter, gcm.NonceSize())
 		chunk := make([]byte, chunkSize+gcm.Overhead())
 		read, _ := inFile.Read(chunk)
-		if read == 0 {
-			break
-		}
-		decrChunk, err := gcm.Open(nil, iv, chunk[:read], []byte("catalyzecatalyze"))
+		decrChunk, err := gcm.Open(nil, iv, chunk[:read], aad)
 		if err != nil {
 			return err
 		}
 		outFile.Write(decrChunk)
-		counter++
+		if read == 0 {
+			break
+		}
+		iv = incrementIV(iv)
 	}
 	return nil
 }
 
-func counterToIV(counter uint64, size int) []byte {
-	b := make([]byte, size)
-	binary.LittleEndian.PutUint64(b, counter)
+func incrementIV(iv []byte) []byte {
+	i := binary.LittleEndian.Uint64(iv)
+	i++
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, i)
+	b = append(b, iv[8:]...)
 	return b
 }
 
