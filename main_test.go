@@ -146,8 +146,32 @@ var testData = []GCMInput{
 		VEC: "0001",
 		KEY: "00000000000000000000000000000000",
 		IV:  "000000000000000000000000",
-		HDR: "66e94bd4ef8a2c3b884cfa59ca342b2e",
+		//HDR: "66e94bd4ef8a2c3b884cfa59ca342b2e",
 		TAG: "58e2fccefa7e3061367f1d57a4e7455a",
+	},
+	{
+		VEC: "0002",
+		KEY: "00000000000000000000000000000000",
+		IV:  "000000000000000000000000",
+		//HDR: "66e94bd4ef8a2c3b884cfa59ca342b2e",
+		PTX: "00000000000000000000000000000000",
+		CTX: "0388dace60b6a392f328c2b971b2fe78",
+		TAG: "ab6e47d42cec13bdf53a67b21257bddf",
+	},
+	{
+		VEC: "0003",
+		KEY: "feffe9928665731c6d6a8f9467308308",
+		IV:  "cafebabefacedbaddecaf888",
+		//HDR: "b83b533708bf535d0aa6e52980d53b78",
+		PTX: "d9313225f88406e5a55909c5aff5269a" +
+			"86a7a9531534f7da2e4c303d8a318a72" +
+			"1c3c0c95956809532fcf0e2449a6b525" +
+			"b16aedf5aa0de657ba637b391aafd255",
+		CTX: "42831ec2217774244b7221b784d0d49c" +
+			"e3aa212f2c02a4e035c17e2329aca12e" +
+			"21d514b25466931c7d8f6a5aac84aa05" +
+			"1ba30b396a0aac973d58e091473f5985",
+		TAG: "4d5c2af327cd64a62cf35abd2ba6fab4",
 	},
 }
 
@@ -158,44 +182,34 @@ func TestGCM(t *testing.T) {
 		defer os.Remove(inputFileName)
 		defer os.Remove(outputFileName)
 
-		var key, iv, hdr, plainText, cipherText, tag []byte
-		var err error
-
-		if input.KEY != "" {
-			key, err = hex.DecodeString(input.KEY)
-			if err != nil {
-				t.Errorf("VEC %s failed. Failed to decode KEY: %v", input.VEC, err.Error())
-				continue
-			}
+		key, err := hex.DecodeString(input.KEY)
+		if err != nil {
+			t.Errorf("VEC %s failed. Failed to decode KEY: %v", input.VEC, err.Error())
+			continue
 		}
 
-		if input.IV != "" {
-			iv, err = hex.DecodeString(input.IV)
-			if err != nil {
-				t.Errorf("VEC %s failed. Failed to decode IV: %v", input.VEC, err.Error())
-				continue
-			}
+		iv, err := hex.DecodeString(input.IV)
+		if err != nil {
+			t.Errorf("VEC %s failed. Failed to decode IV: %v", input.VEC, err.Error())
+			continue
 		}
 
-		if input.HDR != "" {
-			hdr, err = hex.DecodeString(input.HDR)
-			if err != nil {
-				t.Errorf("VEC %s failed. Failed to decode HDR: %v", input.VEC, err.Error())
-				continue
-			}
+		hdr, err := hex.DecodeString(input.HDR)
+		if err != nil {
+			t.Errorf("VEC %s failed. Failed to decode HDR: %v", input.VEC, err.Error())
+			continue
 		}
 
 		aad := hdr
 		for i := 1; i < input.RPT; i++ {
 			aad = append(aad, hdr...)
 		}
+		t.Logf("aad %x\n", aad)
 
-		if input.PTX != "" {
-			plainText, err = hex.DecodeString(input.PTX)
-			if err != nil {
-				t.Errorf("VEC %s failed. Failed to decode PTX: %v", input.VEC, err.Error())
-				continue
-			}
+		plainText, err := hex.DecodeString(input.PTX)
+		if err != nil {
+			t.Errorf("VEC %s failed. Failed to decode PTX: %v", input.VEC, err.Error())
+			continue
 		}
 
 		err = ioutil.WriteFile(inputFileName, plainText, 0644)
@@ -216,40 +230,30 @@ func TestGCM(t *testing.T) {
 			continue
 		}
 
-		if input.CTX != "" {
-			cipherText, err = hex.DecodeString(input.CTX)
-			if err != nil {
-				t.Errorf("VEC %s failed. Failed to decode CTX: %v", input.VEC, err.Error())
-				continue
-			}
+		cipherText, err := hex.DecodeString(input.CTX)
+		if err != nil {
+			t.Errorf("VEC %s failed. Failed to decode CTX: %v", input.VEC, err.Error())
+			continue
 		}
 
-		if input.TAG != "" {
-			tag, err = hex.DecodeString(input.TAG)
-			if err != nil {
-				t.Errorf("VEC %s failed. Failed to decode TAG: %v", input.VEC, err.Error())
-				continue
-			}
+		tag, err := hex.DecodeString(input.TAG)
+		if err != nil {
+			t.Errorf("VEC %s failed. Failed to decode TAG: %v", input.VEC, err.Error())
+			continue
 		}
 
-		if len(output) >= 16 {
-			if subtle.ConstantTimeCompare(output[:len(output)-16], cipherText) != 1 {
-				t.Errorf("VEC %s failed. CTX differs: %x != %x", input.VEC, output[:len(output)-16], cipherText)
-				continue
-			}
-			if subtle.ConstantTimeCompare(output[len(output)-16:], tag) != 1 {
-				t.Errorf("VEC %s failed. TAG differs: %x != %x", input.VEC, output[len(output)-16:], tag)
-				continue
-			}
-		} else {
-			if subtle.ConstantTimeCompare([]byte{}, cipherText) != 1 {
-				t.Errorf("VEC %s failed. CTX differs: %x != %x", input.VEC, []byte{}, cipherText)
-				continue
-			}
-			if subtle.ConstantTimeCompare(output, tag) != 1 {
-				t.Errorf("VEC %s failed. TAG differs: %x != %x", input.VEC, output, tag)
-				continue
-			}
+		t.Logf("output %x\n", output)
+		t.Logf("ct %x\n", cipherText)
+		t.Logf("comp ct %x\n", output[:len(output)-16])
+		t.Logf("tag %x\n", tag)
+		t.Logf("comp tag %x\n", output[len(output)-16:])
+		if subtle.ConstantTimeCompare(output[:len(output)-16], cipherText) != 1 {
+			t.Errorf("VEC %s failed. CTX differs: %x != %x", input.VEC, output[:len(output)-16], cipherText)
+			continue
+		}
+		if subtle.ConstantTimeCompare(output[len(output)-16:], tag) != 1 {
+			t.Errorf("VEC %s failed. TAG differs: %x != %x", input.VEC, output[len(output)-16:], tag)
+			continue
 		}
 	}
 }

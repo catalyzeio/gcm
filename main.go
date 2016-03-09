@@ -72,8 +72,7 @@ func encryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 	if err != nil {
 		return err
 	}
-	//gcm, err := cipher.NewGCMWithNonceSize(aes, len(iv))
-	gcm, err := cipher.NewGCM(aes)
+	gcm, err := cipher.NewGCMWithNonceSize(aes, len(iv))
 	if err != nil {
 		return err
 	}
@@ -115,8 +114,7 @@ func decryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 	if err != nil {
 		return err
 	}
-	//gcm, err := cipher.NewGCMWithNonceSize(aes, len(iv))
-	gcm, err := cipher.NewGCM(aes)
+	gcm, err := cipher.NewGCMWithNonceSize(aes, len(iv))
 	if err != nil {
 		return err
 	}
