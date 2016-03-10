@@ -52,21 +52,18 @@ func encryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 	if _, err := os.Stat(inFilePath); os.IsNotExist(err) {
 		return fmt.Errorf("A file does not exist at %s", inFilePath)
 	}
-	if _, err := os.Stat(outFilePath); err == nil {
-		logger.Printf("Overwriting output file %s\n", outFilePath)
-	}
 
 	inFile, err := os.Open(inFilePath)
-	defer inFile.Close()
 	if err != nil {
 		return err
 	}
+	defer inFile.Close()
 
 	outFile, err := os.OpenFile(outFilePath, os.O_CREATE|os.O_RDWR, 0600)
-	defer outFile.Close()
 	if err != nil {
 		return err
 	}
+	defer outFile.Close()
 
 	aes, err := aes.NewCipher(key)
 	if err != nil {
@@ -82,7 +79,7 @@ func encryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 		read, _ := inFile.Read(chunk)
 		encrChunk := gcm.Seal(nil, iv, chunk[:read], aad)
 		outFile.Write(encrChunk)
-		if read == 0 {
+		if read < chunkSize {
 			break
 		}
 		iv = incrementIV(iv)
@@ -94,21 +91,18 @@ func decryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 	if _, err := os.Stat(inFilePath); os.IsNotExist(err) {
 		return fmt.Errorf("A file does not exist at %s", inFilePath)
 	}
-	if _, err := os.Stat(outFilePath); err == nil {
-		logger.Printf("Overwriting output file %s\n", outFilePath)
-	}
 
 	inFile, err := os.Open(inFilePath)
-	defer inFile.Close()
 	if err != nil {
 		return err
 	}
+	defer inFile.Close()
 
 	outFile, err := os.OpenFile(outFilePath, os.O_CREATE|os.O_RDWR, 0600)
-	defer outFile.Close()
 	if err != nil {
 		return err
 	}
+	defer outFile.Close()
 
 	aes, err := aes.NewCipher(key)
 	if err != nil {
@@ -127,7 +121,7 @@ func decryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 			return err
 		}
 		outFile.Write(decrChunk)
-		if read == 0 {
+		if read < chunkSize {
 			break
 		}
 		iv = incrementIV(iv)

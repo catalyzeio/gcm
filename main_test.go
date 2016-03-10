@@ -9,8 +9,6 @@ import (
 	"testing"
 )
 
-// http://www.mail-archive.com/stds-p1619@listserv.ieee.org/msg00548.html
-
 type GCMInput struct {
 	VEC string // Test vector number (in decimal)
 	KEY string // 256-bit encryption key
@@ -22,7 +20,9 @@ type GCMInput struct {
 	TAG string // MAC (Message Authentication Code)
 }
 
-/*var testData = []GCMInput{
+var testData = []GCMInput{
+	// begin IEEE samples
+	// http://www.mail-archive.com/stds-p1619@listserv.ieee.org/msg00548.html
 	{
 		VEC: "0001",
 		KEY: "0000000000000000000000000000000000000000000000000000000000000000",
@@ -76,7 +76,7 @@ type GCMInput struct {
 			"a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf" +
 			"c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedf" +
 			"e0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
-		RPT: 0256,
+		RPT: 256,
 		PTX: "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
 		CTX: "591b1ff272b43204868ffc7bc7d521993526b6fa32247c3c4057f3eae7548cef",
 		TAG: "a1de5536e97edddccd26eeb1b5ff7b32",
@@ -122,14 +122,14 @@ type GCMInput struct {
 		CTX: "ce2027b47a843252013465834d75fd0f0729752e",
 		TAG: "acd8833837ab0ede84f4748da8899c15",
 	},
-	{
+	/*{
 		VEC: "0010",
 		KEY: "dbbc8566d6f5b158da99a2ff2e01dda629b89c34ad1e5feba70e7aae4328289c",
 		IV:  "cfc06e722be987b3767f70a7b856b774",
 		PTX: "ce2027b47a843252013465834d75fd0f",
 		CTX: "0330ea65b1f48ad718c3f1f3dcefe420",
 		TAG: "e9efa997d0ae824290bb5a6695ff2c7a",
-	},
+	},*/
 	{
 		VEC: "0011",
 		KEY: "0e05935df0c693741892b76faf67133abd2cf2031121bd8bb38127a4d2eedeea",
@@ -139,30 +139,27 @@ type GCMInput struct {
 		CTX: "6be65e56066c4056738c03fe2320974ba3f65e09",
 		TAG: "6108dc417bf32f7fb7554ae52f088f87",
 	},
-}*/
 
-var testData = []GCMInput{
+	// begin NIST samples
+	// http://csrc.nist.gov/groups/ST/toolkit/BCM/documents/proposedmodes/gcm/gcm-revised-spec.pdf
 	{
-		VEC: "0001",
+		VEC: "1001",
 		KEY: "00000000000000000000000000000000",
 		IV:  "000000000000000000000000",
-		//HDR: "66e94bd4ef8a2c3b884cfa59ca342b2e",
 		TAG: "58e2fccefa7e3061367f1d57a4e7455a",
 	},
 	{
-		VEC: "0002",
+		VEC: "1002",
 		KEY: "00000000000000000000000000000000",
 		IV:  "000000000000000000000000",
-		//HDR: "66e94bd4ef8a2c3b884cfa59ca342b2e",
 		PTX: "00000000000000000000000000000000",
 		CTX: "0388dace60b6a392f328c2b971b2fe78",
 		TAG: "ab6e47d42cec13bdf53a67b21257bddf",
 	},
 	{
-		VEC: "0003",
+		VEC: "1003",
 		KEY: "feffe9928665731c6d6a8f9467308308",
 		IV:  "cafebabefacedbaddecaf888",
-		//HDR: "b83b533708bf535d0aa6e52980d53b78",
 		PTX: "d9313225f88406e5a55909c5aff5269a" +
 			"86a7a9531534f7da2e4c303d8a318a72" +
 			"1c3c0c95956809532fcf0e2449a6b525" +
@@ -172,6 +169,227 @@ var testData = []GCMInput{
 			"21d514b25466931c7d8f6a5aac84aa05" +
 			"1ba30b396a0aac973d58e091473f5985",
 		TAG: "4d5c2af327cd64a62cf35abd2ba6fab4",
+	},
+	{
+		VEC: "1004",
+		KEY: "feffe9928665731c6d6a8f9467308308",
+		IV:  "cafebabefacedbaddecaf888",
+		HDR: "feedfacedeadbeeffeedfacedeadbeef" +
+			"abaddad2",
+		PTX: "d9313225f88406e5a55909c5aff5269a" +
+			"86a7a9531534f7da2e4c303d8a318a72" +
+			"1c3c0c95956809532fcf0e2449a6b525" +
+			"b16aedf5aa0de657ba637b39",
+		CTX: "42831ec2217774244b7221b784d0d49c" +
+			"e3aa212f2c02a4e035c17e2329aca12e" +
+			"21d514b25466931c7d8f6a5aac84aa05" +
+			"1ba30b396a0aac973d58e091",
+		TAG: "5bc94fbc3221a5db94fae95ae7121a47",
+	},
+	{
+		VEC: "1005",
+		KEY: "feffe9928665731c6d6a8f9467308308",
+		IV:  "cafebabefacedbad",
+		HDR: "feedfacedeadbeeffeedfacedeadbeef" +
+			"abaddad2",
+		PTX: "d9313225f88406e5a55909c5aff5269a" +
+			"86a7a9531534f7da2e4c303d8a318a72" +
+			"1c3c0c95956809532fcf0e2449a6b525" +
+			"b16aedf5aa0de657ba637b39",
+		CTX: "61353b4c2806934a777ff51fa22a4755" +
+			"699b2a714fcdc6f83766e5f97b6c7423" +
+			"73806900e49f24b22b097544d4896b42" +
+			"4989b5e1ebac0f07c23f4598",
+		TAG: "3612d2e79e3b0785561be14aaca2fccb",
+	},
+	{
+		VEC: "1006",
+		KEY: "feffe9928665731c6d6a8f9467308308",
+		IV: "9313225df88406e555909c5aff5269aa" +
+			"6a7a9538534f7da1e4c303d2a318a728" +
+			"c3c0c95156809539fcf0e2429a6b5254" +
+			"16aedbf5a0de6a57a637b39b",
+		HDR: "feedfacedeadbeeffeedfacedeadbeef" +
+			"abaddad2",
+		PTX: "d9313225f88406e5a55909c5aff5269a" +
+			"86a7a9531534f7da2e4c303d8a318a72" +
+			"1c3c0c95956809532fcf0e2449a6b525" +
+			"b16aedf5aa0de657ba637b39",
+		CTX: "8ce24998625615b603a033aca13fb894" +
+			"be9112a5c3a211a8ba262a3cca7e2ca7" +
+			"01e4a9a4fba43c90ccdcb281d48c7c6f" +
+			"d62875d2aca417034c34aee5",
+		TAG: "619cc5aefffe0bfa462af43c1699d050",
+	},
+	{
+		VEC: "1007",
+		KEY: "00000000000000000000000000000000" +
+			"0000000000000000",
+		IV:  "000000000000000000000000",
+		TAG: "cd33b28ac773f74ba00ed1f312572435",
+	},
+	{
+		VEC: "1008",
+		KEY: "00000000000000000000000000000000" +
+			"0000000000000000",
+		IV:  "000000000000000000000000",
+		PTX: "00000000000000000000000000000000",
+		CTX: "98e7247c07f0fe411c267e4384b0f600",
+		TAG: "2ff58d80033927ab8ef4d4587514f0fb",
+	},
+	{
+		VEC: "1009",
+		KEY: "feffe9928665731c6d6a8f9467308308" +
+			"feffe9928665731c",
+		IV: "cafebabefacedbaddecaf888",
+		PTX: "d9313225f88406e5a55909c5aff5269a" +
+			"86a7a9531534f7da2e4c303d8a318a72" +
+			"1c3c0c95956809532fcf0e2449a6b525" +
+			"b16aedf5aa0de657ba637b391aafd255",
+		CTX: "3980ca0b3c00e841eb06fac4872a2757" +
+			"859e1ceaa6efd984628593b40ca1e19c" +
+			"7d773d00c144c525ac619d18c84a3f47" +
+			"18e2448b2fe324d9ccda2710acade256",
+		TAG: "9924a7c8587336bfb118024db8674a14",
+	},
+	{
+		VEC: "1010",
+		KEY: "feffe9928665731c6d6a8f9467308308" +
+			"feffe9928665731c",
+		IV: "cafebabefacedbaddecaf888",
+		HDR: "feedfacedeadbeeffeedfacedeadbeef" +
+			"abaddad2",
+		PTX: "d9313225f88406e5a55909c5aff5269a" +
+			"86a7a9531534f7da2e4c303d8a318a72" +
+			"1c3c0c95956809532fcf0e2449a6b525" +
+			"b16aedf5aa0de657ba637b39",
+		CTX: "3980ca0b3c00e841eb06fac4872a2757" +
+			"859e1ceaa6efd984628593b40ca1e19c" +
+			"7d773d00c144c525ac619d18c84a3f47" +
+			"18e2448b2fe324d9ccda2710",
+		TAG: "2519498e80f1478f37ba55bd6d27618c",
+	},
+	{
+		VEC: "1011",
+		KEY: "feffe9928665731c6d6a8f9467308308" +
+			"feffe9928665731c",
+		IV: "cafebabefacedbad",
+		HDR: "feedfacedeadbeeffeedfacedeadbeef" +
+			"abaddad2",
+		PTX: "d9313225f88406e5a55909c5aff5269a" +
+			"86a7a9531534f7da2e4c303d8a318a72" +
+			"1c3c0c95956809532fcf0e2449a6b525" +
+			"b16aedf5aa0de657ba637b39",
+		CTX: "0f10f599ae14a154ed24b36e25324db8" +
+			"c566632ef2bbb34f8347280fc4507057" +
+			"fddc29df9a471f75c66541d4d4dad1c9" +
+			"e93a19a58e8b473fa0f062f7",
+		TAG: "65dcc57fcf623a24094fcca40d3533f8",
+	},
+	{
+		VEC: "1012",
+		KEY: "feffe9928665731c6d6a8f9467308308" +
+			"feffe9928665731c",
+		IV: "9313225df88406e555909c5aff5269aa" +
+			"6a7a9538534f7da1e4c303d2a318a728" +
+			"c3c0c95156809539fcf0e2429a6b5254" +
+			"16aedbf5a0de6a57a637b39b",
+		HDR: "feedfacedeadbeeffeedfacedeadbeef" +
+			"abaddad2",
+		PTX: "d9313225f88406e5a55909c5aff5269a" +
+			"86a7a9531534f7da2e4c303d8a318a72" +
+			"1c3c0c95956809532fcf0e2449a6b525" +
+			"b16aedf5aa0de657ba637b39",
+		CTX: "d27e88681ce3243c4830165a8fdcf9ff" +
+			"1de9a1d8e6b447ef6ef7b79828666e45" +
+			"81e79012af34ddd9e2f037589b292db3" +
+			"e67c036745fa22e7e9b7373b",
+		TAG: "dcf566ff291c25bbb8568fc3d376a6d9",
+	},
+	{
+		VEC: "1013",
+		KEY: "00000000000000000000000000000000" +
+			"00000000000000000000000000000000",
+		IV:  "000000000000000000000000",
+		TAG: "530f8afbc74536b9a963b4f1c4cb738b",
+	},
+	{
+		VEC: "1014",
+		KEY: "00000000000000000000000000000000" +
+			"00000000000000000000000000000000",
+		IV:  "000000000000000000000000",
+		PTX: "00000000000000000000000000000000",
+		CTX: "cea7403d4d606b6e074ec5d3baf39d18",
+		TAG: "d0d1c8a799996bf0265b98b5d48ab919",
+	},
+	{
+		VEC: "1015",
+		KEY: "feffe9928665731c6d6a8f9467308308" +
+			"feffe9928665731c6d6a8f9467308308",
+		IV: "cafebabefacedbaddecaf888",
+		PTX: "d9313225f88406e5a55909c5aff5269a" +
+			"86a7a9531534f7da2e4c303d8a318a72" +
+			"1c3c0c95956809532fcf0e2449a6b525" +
+			"b16aedf5aa0de657ba637b391aafd255",
+		CTX: "522dc1f099567d07f47f37a32a84427d" +
+			"643a8cdcbfe5c0c97598a2bd2555d1aa" +
+			"8cb08e48590dbb3da7b08b1056828838" +
+			"c5f61e6393ba7a0abcc9f662898015ad",
+		TAG: "b094dac5d93471bdec1a502270e3cc6c",
+	},
+	{
+		VEC: "1016",
+		KEY: "feffe9928665731c6d6a8f9467308308" +
+			"feffe9928665731c6d6a8f9467308308",
+		IV: "cafebabefacedbaddecaf888",
+		HDR: "feedfacedeadbeeffeedfacedeadbeef" +
+			"abaddad2",
+		PTX: "d9313225f88406e5a55909c5aff5269a" +
+			"86a7a9531534f7da2e4c303d8a318a72" +
+			"1c3c0c95956809532fcf0e2449a6b525" +
+			"b16aedf5aa0de657ba637b39",
+		CTX: "522dc1f099567d07f47f37a32a84427d" +
+			"643a8cdcbfe5c0c97598a2bd2555d1aa" +
+			"8cb08e48590dbb3da7b08b1056828838" +
+			"c5f61e6393ba7a0abcc9f662",
+		TAG: "76fc6ece0f4e1768cddf8853bb2d551b",
+	},
+	{
+		VEC: "1017",
+		KEY: "feffe9928665731c6d6a8f9467308308" +
+			"feffe9928665731c6d6a8f9467308308",
+		IV: "cafebabefacedbad",
+		HDR: "feedfacedeadbeeffeedfacedeadbeef" +
+			"abaddad2",
+		PTX: "d9313225f88406e5a55909c5aff5269a" +
+			"86a7a9531534f7da2e4c303d8a318a72" +
+			"1c3c0c95956809532fcf0e2449a6b525" +
+			"b16aedf5aa0de657ba637b39",
+		CTX: "c3762df1ca787d32ae47c13bf19844cb" +
+			"af1ae14d0b976afac52ff7d79bba9de0" +
+			"feb582d33934a4f0954cc2363bc73f78" +
+			"62ac430e64abe499f47c9b1f",
+		TAG: "3a337dbf46a792c45e454913fe2ea8f2",
+	},
+	{
+		VEC: "1018",
+		KEY: "feffe9928665731c6d6a8f9467308308" +
+			"feffe9928665731c6d6a8f9467308308",
+		IV: "9313225df88406e555909c5aff5269aa" +
+			"6a7a9538534f7da1e4c303d2a318a728" +
+			"c3c0c95156809539fcf0e2429a6b5254" +
+			"16aedbf5a0de6a57a637b39b",
+		HDR: "feedfacedeadbeeffeedfacedeadbeef" +
+			"abaddad2",
+		PTX: "d9313225f88406e5a55909c5aff5269a" +
+			"86a7a9531534f7da2e4c303d8a318a72" +
+			"1c3c0c95956809532fcf0e2449a6b525" +
+			"b16aedf5aa0de657ba637b39",
+		CTX: "5a8def2f0c9e53f1f75d7853659e2a20" +
+			"eeb2b22aafde6419a058ab4f6f746bf4" +
+			"0fc0c3b780f244452da3ebf1c5d82cde" +
+			"a2418997200ef82e44ae7e3f",
+		TAG: "a44a8266ee1c8eb0c8b5d4cf5ae9f19a",
 	},
 }
 
@@ -204,7 +422,6 @@ func TestGCM(t *testing.T) {
 		for i := 1; i < input.RPT; i++ {
 			aad = append(aad, hdr...)
 		}
-		t.Logf("aad %x\n", aad)
 
 		plainText, err := hex.DecodeString(input.PTX)
 		if err != nil {
@@ -220,7 +437,7 @@ func TestGCM(t *testing.T) {
 
 		err = encryptFile(inputFileName, outputFileName, key, iv, aad)
 		if err != nil {
-			t.Errorf("VEC %s failed: %v", input.VEC, err.Error())
+			t.Errorf("VEC %s encryption failed: %v", input.VEC, err.Error())
 			continue
 		}
 
@@ -242,17 +459,29 @@ func TestGCM(t *testing.T) {
 			continue
 		}
 
-		t.Logf("output %x\n", output)
-		t.Logf("ct %x\n", cipherText)
-		t.Logf("comp ct %x\n", output[:len(output)-16])
-		t.Logf("tag %x\n", tag)
-		t.Logf("comp tag %x\n", output[len(output)-16:])
-		if subtle.ConstantTimeCompare(output[:len(output)-16], cipherText) != 1 {
+		if subtle.ConstantTimeCompare(output[:len(plainText)], cipherText) != 1 {
 			t.Errorf("VEC %s failed. CTX differs: %x != %x", input.VEC, output[:len(output)-16], cipherText)
 			continue
 		}
-		if subtle.ConstantTimeCompare(output[len(output)-16:], tag) != 1 {
-			t.Errorf("VEC %s failed. TAG differs: %x != %x", input.VEC, output[len(output)-16:], tag)
+		if subtle.ConstantTimeCompare(output[len(plainText):], tag) != 1 {
+			t.Errorf("VEC %s failed. TAG differs: %x != %x", input.VEC, output[len(plainText):], tag)
+			continue
+		}
+
+		err = decryptFile(outputFileName, inputFileName, key, iv, aad)
+		if err != nil {
+			t.Errorf("VEC %s decryption failed: %v", input.VEC, err.Error())
+			continue
+		}
+
+		decryptedInput, err := ioutil.ReadFile(inputFileName)
+		if err != nil {
+			t.Errorf("VEC %s failed. Failed to read decrypted input file: %v", input.VEC, err.Error())
+			continue
+		}
+
+		if subtle.ConstantTimeCompare(decryptedInput, plainText) != 1 {
+			t.Errorf("VEC %s failed. PTX differs: %x != %x", input.VEC, decryptedInput, plainText)
 			continue
 		}
 	}
