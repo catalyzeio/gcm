@@ -77,16 +77,16 @@ func encryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 
 	chunk := make([]byte, chunkSize)
 	for {
+		eof := false
 		read, err := inFile.Read(chunk)
 		if err == io.EOF {
-			break
-		}
-		if err != nil {
+			eof = true
+		} else if err != nil {
 			return err
 		}
 		encrChunk := gcm.Seal(nil, iv, chunk[:read], aad)
 		outFile.Write(encrChunk)
-		if read < chunkSize {
+		if read < chunkSize || eof {
 			break
 		}
 		iv = incrementIV(iv)
@@ -122,11 +122,11 @@ func decryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 
 	chunk := make([]byte, chunkSize+gcm.Overhead())
 	for {
+		eof := false
 		read, err := inFile.Read(chunk)
 		if err == io.EOF {
-			break
-		}
-		if err != nil {
+			eof = true
+		} else if err != nil {
 			return err
 		}
 		decrChunk, err := gcm.Open(nil, iv, chunk[:read], aad)
@@ -134,7 +134,7 @@ func decryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 			return err
 		}
 		outFile.Write(decrChunk)
-		if read < chunkSize {
+		if read < chunkSize || eof {
 			break
 		}
 		iv = incrementIV(iv)
