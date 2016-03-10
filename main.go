@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 )
@@ -76,7 +77,13 @@ func encryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 
 	for {
 		chunk := make([]byte, chunkSize)
-		read, _ := inFile.Read(chunk)
+		read, err := inFile.Read(chunk)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
 		encrChunk := gcm.Seal(nil, iv, chunk[:read], aad)
 		outFile.Write(encrChunk)
 		if read < chunkSize {
@@ -115,7 +122,13 @@ func decryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 
 	for {
 		chunk := make([]byte, chunkSize+gcm.Overhead())
-		read, _ := inFile.Read(chunk)
+		read, err := inFile.Read(chunk)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
 		decrChunk, err := gcm.Open(nil, iv, chunk[:read], aad)
 		if err != nil {
 			return err
