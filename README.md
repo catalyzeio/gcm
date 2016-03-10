@@ -6,12 +6,12 @@ A simple command line utility for encrypting and decrypting files of any size us
 
 The following flags are required for both encryption and decryption
 
-| Flag | Default Value | Description |
-|------|---------------|-------------|
-| -K | &nbsp; | The hex encoded key |
-| -iv | &nbsp; | The hex encoded IV |
-| -in | &nbsp; | The input file |
-| -out | &nbsp; | The output file |
+| Flag | Description |
+|------|-------------|
+| -K | The hex encoded key |
+| -iv | The hex encoded IV |
+| -in | The input file |
+| -out | The output file |
 
 Further, you must specify one of `-e` for encryption or `-d` for decryption.
 
