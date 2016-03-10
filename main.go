@@ -75,8 +75,8 @@ func encryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 		return err
 	}
 
+	chunk := make([]byte, chunkSize)
 	for {
-		chunk := make([]byte, chunkSize)
 		read, err := inFile.Read(chunk)
 		if err == io.EOF {
 			break
@@ -120,8 +120,8 @@ func decryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 		return err
 	}
 
+	chunk := make([]byte, chunkSize+gcm.Overhead())
 	for {
-		chunk := make([]byte, chunkSize+gcm.Overhead())
 		read, err := inFile.Read(chunk)
 		if err == io.EOF {
 			break
