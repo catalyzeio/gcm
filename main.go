@@ -13,6 +13,7 @@ import (
 
 const (
 	keySize   = 32
+	minIVSize = 12
 	chunkSize = 1024 * 1024 // 1 MB
 
 	// AAD (Additional authenticated data) is to be used in the GCM algorithm
@@ -40,12 +41,15 @@ func main() {
 	flag.Parse()
 	checkRequiredFlags()
 	key, err := hex.DecodeString(keyString)
-	if err != nil || len(key) != keySize {
-		logger.Fatalf("Invalid key. Must be a valid %d byte hex encoded string\n", keySize)
+	if err != nil {
+		logger.Fatalf("Invalid key: %s.", err)
 	}
 	iv, err := hex.DecodeString(ivString)
 	if err != nil {
-		logger.Fatalln("Invalid IV. Must be a valid hex encoded string")
+		logger.Fatalf("Invalid IV: %s.", err)
+	}
+	if len(iv) < minIVSize {
+		logger.Fatalf("Invalid IV. Must be a valid hex encoded string at least %d bytes long.", minIVSize)
 	}
 	aad, err := hex.DecodeString(AAD)
 	if err != nil {
