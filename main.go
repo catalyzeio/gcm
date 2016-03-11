@@ -47,8 +47,10 @@ func main() {
 	if err != nil {
 		logger.Fatalln("Invalid IV. Must be a valid hex encoded string")
 	}
-	// ignoring the error here as this hex const will always decode
-	aad, _ := hex.DecodeString(AAD)
+	aad, err := hex.DecodeString(AAD)
+	if err != nil {
+		panic(err)
+	}
 	if encrypt {
 		err = encryptFile(inputPath, outputPath, key, iv, aad)
 	} else if decrypt {
