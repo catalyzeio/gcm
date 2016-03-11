@@ -44,6 +44,9 @@ func main() {
 	if err != nil {
 		logger.Fatalf("Invalid key: %s.", err)
 	}
+	if len(key) != keySize {
+		logger.Fatalf("Invalid key. Must be a valid hex encoded string at least %d bytes long.", keySize)
+	}
 	iv, err := hex.DecodeString(ivString)
 	if err != nil {
 		logger.Fatalf("Invalid IV: %s.", err)
