@@ -33,17 +33,18 @@ It is strongly recommended that the given key and IV follow these rules
 
 * keys must be 32 bytes in length
 * IVs should be 12 bytes in length
+* keys and IVs never be reused in combination
 
 ## How it works
 
-File encryption is achieved by splitting files into chunks of a predefined size (1 MB at the time of writing this) and performing GCM encryption on each chunk. The output of each operation is appended to a file. This entire output file is the final result of this GCM file encryption utility.
+File encryption is achieved by splitting files into chunks of a predefined size (1 MB at this time) and performing GCM encryption on each chunk. The output of each operation is appended to a file. This entire output file is the final result of this GCM file encryption utility.
 
 ## Overhead
 
-Because of the nature of all Authenticated Encryption with Associated Data (AEAD) algorithms, such as GCM, there is a small amount of overhead added to each piece of encrypted data. This additional piece of data is called the `TAG` and is a fixed size of 16 bytes. In this implementation, the TAG is appended to the output file.
+Because of the nature of all Authenticated Encryption with Associated Data (AEAD) algorithms, such as GCM, there is a small amount of overhead added to each piece of encrypted data. This additional piece of data, called the `TAG`, is a fixed size of 16 bytes. In this implementation, the TAG is appended to each encrypted chunk in the output file.
 
 In total, this algorithm produces `16 bytes * ceil(plainTextFileSize bytes / 1048576 bytes)` of overhead (1048576 bytes is 1 MB). For a 1 MB file, the total encrypted file size will be `1048576 bytes + 16 bytes = 1048592 bytes`.
 
 ## Tests
 
-This implementation passes all test samples from [IEEE](http://www.mail-archive.com/stds-p1619@listserv.ieee.org/msg00548.html) and [NIST](http://csrc.nist.gov/groups/ST/toolkit/BCM/documents/proposedmodes/gcm/gcm-revised-spec.pdf). However, it should be noted that those test samples are designed for small inputs and not for large file encryption. There is no clear standard for large file encryption using GCM.
+This implementation passes all test samples from [IEEE](http://www.mail-archive.com/stds-p1619@listserv.ieee.org/msg00548.html) and [NIST](http://csrc.nist.gov/groups/ST/toolkit/BCM/documents/proposedmodes/gcm/gcm-revised-spec.pdf). However, it should be noted that those test samples are designed for small inputs and not for large file encryption.

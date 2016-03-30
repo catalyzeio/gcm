@@ -1,4 +1,4 @@
-package main
+package gcm
 
 import (
 	"crypto/subtle"
@@ -435,7 +435,7 @@ func TestGCM(t *testing.T) {
 			continue
 		}
 
-		err = encryptFile(inputFileName, outputFileName, key, iv, aad)
+		err = EncryptFile(inputFileName, outputFileName, key, iv, aad)
 		if err != nil {
 			t.Errorf("VEC %s encryption failed: %v", input.VEC, err.Error())
 			continue
@@ -468,7 +468,7 @@ func TestGCM(t *testing.T) {
 			continue
 		}
 
-		err = decryptFile(outputFileName, inputFileName, key, iv, aad)
+		err = DecryptFile(outputFileName, inputFileName, key, iv, aad)
 		if err != nil {
 			t.Errorf("VEC %s decryption failed: %v", input.VEC, err.Error())
 			continue
