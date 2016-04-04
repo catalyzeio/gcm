@@ -47,15 +47,14 @@ func EncryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 	for {
 		read, err := inFile.Read(chunk)
 		// ensure we have written at least one chunk before breaking
-		if written && err == io.EOF {
-			break
-		} else if err != nil && err != io.EOF {
-			return err
+		if read > 0 || !written {
+			encrChunk := gcm.Seal(nil, iv, chunk[:read], aad)
+			if _, err := outFile.Write(encrChunk); err != nil {
+				return err
+			}
+			written = true
 		}
-		encrChunk := gcm.Seal(nil, iv, chunk[:read], aad)
-		outFile.Write(encrChunk)
-		written = true
-		if read < chunkSize {
+		if err == io.EOF {
 			break
 		}
 		incrementIV(iv)
@@ -95,18 +94,17 @@ func DecryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 	for {
 		read, err := inFile.Read(chunk)
 		// ensure we have written at least one chunk before breaking
-		if written && err == io.EOF {
-			break
-		} else if err != nil && err != io.EOF {
-			return err
+		if read > 0 || !written {
+			decrChunk, err := gcm.Open(nil, iv, chunk[:read], aad)
+			if err != nil {
+				return err
+			}
+			if _, err := outFile.Write(decrChunk); err != nil {
+				return err
+			}
+			written = true
 		}
-		decrChunk, err := gcm.Open(nil, iv, chunk[:read], aad)
-		if err != nil {
-			return err
-		}
-		outFile.Write(decrChunk)
-		written = true
-		if read < chunkSize+gcm.Overhead() {
+		if err == io.EOF {
 			break
 		}
 		incrementIV(iv)
