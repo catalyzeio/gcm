@@ -74,7 +74,7 @@ func DecryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 	}
 	defer inFile.Close()
 
-	outFile, err := os.OpenFile(outFilePath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0600)
+	outFile, err := os.OpenFile(outFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
