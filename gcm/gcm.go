@@ -16,10 +16,13 @@ const (
 )
 
 // EncryptFile encrypts the file at the specified path using GCM
-func EncryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
+func EncryptFile(inFilePath, outFilePath string, key, givenIV, aad []byte) error {
 	if _, err := os.Stat(inFilePath); os.IsNotExist(err) {
 		return fmt.Errorf("A file does not exist at %s", inFilePath)
 	}
+	// copy the IV since it will potentially be incremented
+	iv := make([]byte, len(givenIV))
+	copy(iv, givenIV)
 
 	inFile, err := os.Open(inFilePath)
 	if err != nil {
@@ -63,10 +66,13 @@ func EncryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 }
 
 // DecryptFile decrypts the file at the specified path using GCM
-func DecryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
+func DecryptFile(inFilePath, outFilePath string, key, givenIV, aad []byte) error {
 	if _, err := os.Stat(inFilePath); os.IsNotExist(err) {
 		return fmt.Errorf("A file does not exist at %s", inFilePath)
 	}
+	// copy the IV since it will potentially be incremented
+	iv := make([]byte, len(givenIV))
+	copy(iv, givenIV)
 
 	inFile, err := os.Open(inFilePath)
 	if err != nil {

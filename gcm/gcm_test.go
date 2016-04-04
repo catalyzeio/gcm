@@ -555,13 +555,6 @@ func TestGCM(t *testing.T) {
 			}
 		}
 
-		// re-read the IV since it might have been modified by the encryption func
-		iv, err = hex.DecodeString(input.IV)
-		if err != nil {
-			t.Errorf("VEC %s failed. Failed to decode IV: %v", input.VEC, err.Error())
-			continue
-		}
-
 		err = DecryptFile(outputFileName, inputFileName, key, iv, aad)
 		if err != nil {
 			t.Errorf("VEC %s decryption failed: %v", input.VEC, err.Error())
