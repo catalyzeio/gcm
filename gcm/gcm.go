@@ -27,7 +27,7 @@ func EncryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 	}
 	defer inFile.Close()
 
-	outFile, err := os.OpenFile(outFilePath, os.O_CREATE|os.O_RDWR, 0600)
+	outFile, err := os.OpenFile(outFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
@@ -43,17 +43,18 @@ func EncryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 	}
 
 	chunk := make([]byte, chunkSize)
+	written := false
 	for {
-		eof := false
 		read, err := inFile.Read(chunk)
-		if err == io.EOF {
-			eof = true
-		} else if err != nil {
-			return err
+		// ensure we have written at least one chunk before breaking
+		if read > 0 || !written {
+			encrChunk := gcm.Seal(nil, iv, chunk[:read], aad)
+			if _, err := outFile.Write(encrChunk); err != nil {
+				return err
+			}
+			written = true
 		}
-		encrChunk := gcm.Seal(nil, iv, chunk[:read], aad)
-		outFile.Write(encrChunk)
-		if read < chunkSize || eof {
+		if err == io.EOF {
 			break
 		}
 		incrementIV(iv)
@@ -73,7 +74,7 @@ func DecryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 	}
 	defer inFile.Close()
 
-	outFile, err := os.OpenFile(outFilePath, os.O_CREATE|os.O_RDWR, 0600)
+	outFile, err := os.OpenFile(outFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
@@ -88,21 +89,22 @@ func DecryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 		return err
 	}
 
+	written := false
 	chunk := make([]byte, chunkSize+gcm.Overhead())
 	for {
-		eof := false
 		read, err := inFile.Read(chunk)
+		// ensure we have written at least one chunk before breaking
+		if read > 0 || !written {
+			decrChunk, err := gcm.Open(nil, iv, chunk[:read], aad)
+			if err != nil {
+				return err
+			}
+			if _, err := outFile.Write(decrChunk); err != nil {
+				return err
+			}
+			written = true
+		}
 		if err == io.EOF {
-			eof = true
-		} else if err != nil {
-			return err
-		}
-		decrChunk, err := gcm.Open(nil, iv, chunk[:read], aad)
-		if err != nil {
-			return err
-		}
-		outFile.Write(decrChunk)
-		if read < chunkSize || eof {
 			break
 		}
 		incrementIV(iv)

@@ -10,14 +10,17 @@ import (
 )
 
 type GCMInput struct {
-	VEC string // Test vector number (in decimal)
-	KEY string // 256-bit encryption key
-	IV  string // Initialization vector
-	HDR string // AAD (Additional Authentication Data)
-	RPT int    // Repeat the previous HDR (AAD) a given number of times
-	PTX string // Plaintext
-	CTX string // Ciphertext
-	TAG string // MAC (Message Authentication Code)
+	VEC    string // Test vector number (in decimal)
+	KEY    string // 256-bit encryption key
+	IV     string // Initialization vector
+	HDR    string // AAD (Additional Authentication Data)
+	HDRRPT int    // Repeat the previous HDR (AAD) a given number of times
+	PTX    string // Plaintext
+	PTXRPT int    // Repeat the previous PTX a given number of times
+	CTX    string // Ciphertext
+	CTXALT string // The second ciphertext for > 1 MB PTX
+	TAG    string // MAC (Message Authentication Code)
+	TAGALT string // The second tag for > 1 MB PTX
 }
 
 var testData = []GCMInput{
@@ -76,10 +79,10 @@ var testData = []GCMInput{
 			"a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf" +
 			"c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedf" +
 			"e0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
-		RPT: 256,
-		PTX: "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
-		CTX: "591b1ff272b43204868ffc7bc7d521993526b6fa32247c3c4057f3eae7548cef",
-		TAG: "a1de5536e97edddccd26eeb1b5ff7b32",
+		HDRRPT: 256,
+		PTX:    "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+		CTX:    "591b1ff272b43204868ffc7bc7d521993526b6fa32247c3c4057f3eae7548cef",
+		TAG:    "a1de5536e97edddccd26eeb1b5ff7b32",
 	},
 	{
 		VEC: "0007",
@@ -391,6 +394,40 @@ var testData = []GCMInput{
 			"a2418997200ef82e44ae7e3f",
 		TAG: "a44a8266ee1c8eb0c8b5d4cf5ae9f19a",
 	},
+
+	// begin custom samples
+	{
+		VEC: "2001",
+		KEY: "00000000000000000000000000000000" +
+			"00000000000000000000000000000000",
+		IV:     "000000000000000000000000",
+		PTX:    "00",
+		PTXRPT: 1024*1024 - 1,
+		CTX:    "2001_ctx.bin",
+		TAG:    "d3ea4ccde8b939407b33a8162bb602d1",
+	},
+	{
+		VEC: "2002",
+		KEY: "00000000000000000000000000000000" +
+			"00000000000000000000000000000000",
+		IV:     "000000000000000000000000",
+		PTX:    "00",
+		PTXRPT: 1024 * 1024,
+		CTX:    "2002_ctx.bin",
+		TAG:    "1f55616b3612d932837e5b3ca3590979",
+	},
+	{
+		VEC: "2003",
+		KEY: "00000000000000000000000000000000" +
+			"00000000000000000000000000000000",
+		IV:     "000000000000000000000000",
+		PTX:    "00",
+		PTXRPT: 1024*1024 + 1,
+		CTX:    "2003_ctx.bin",
+		CTXALT: "2003_ctx_alt.bin",
+		TAG:    "1f55616b3612d932837e5b3ca3590979",
+		TAGALT: "084eb75882ae250c78ff1229cfc4fb6b",
+	},
 }
 
 func TestGCM(t *testing.T) {
@@ -419,14 +456,19 @@ func TestGCM(t *testing.T) {
 		}
 
 		aad := hdr
-		for i := 1; i < input.RPT; i++ {
+		for i := 1; i < input.HDRRPT; i++ {
 			aad = append(aad, hdr...)
 		}
 
-		plainText, err := hex.DecodeString(input.PTX)
+		ptx, err := hex.DecodeString(input.PTX)
 		if err != nil {
 			t.Errorf("VEC %s failed. Failed to decode PTX: %v", input.VEC, err.Error())
 			continue
+		}
+
+		plainText := ptx
+		for i := 1; i < input.PTXRPT; i++ {
+			plainText = append(plainText, ptx...)
 		}
 
 		err = ioutil.WriteFile(inputFileName, plainText, 0644)
@@ -447,10 +489,34 @@ func TestGCM(t *testing.T) {
 			continue
 		}
 
-		cipherText, err := hex.DecodeString(input.CTX)
-		if err != nil {
-			t.Errorf("VEC %s failed. Failed to decode CTX: %v", input.VEC, err.Error())
-			continue
+		var cipherText []byte
+		if _, err = os.Stat(input.CTX); err != nil {
+			cipherText, err = hex.DecodeString(input.CTX)
+			if err != nil {
+				t.Errorf("VEC %s failed. Failed to decode CTX: %v", input.VEC, err.Error())
+				continue
+			}
+		} else {
+			cipherText, err = ioutil.ReadFile(input.CTX)
+			if err != nil {
+				t.Errorf("VEC %s failed. Failed to read CTX file: %v", input.VEC, err.Error())
+				continue
+			}
+		}
+
+		var cipherTextAlt []byte
+		if _, err = os.Stat(input.CTXALT); err != nil {
+			cipherTextAlt, err = hex.DecodeString(input.CTXALT)
+			if err != nil {
+				t.Errorf("VEC %s failed. Failed to decode CTXALT: %v", input.VEC, err.Error())
+				continue
+			}
+		} else {
+			cipherTextAlt, err = ioutil.ReadFile(input.CTXALT)
+			if err != nil {
+				t.Errorf("VEC %s failed. Failed to read CTXALT file: %v", input.VEC, err.Error())
+				continue
+			}
 		}
 
 		tag, err := hex.DecodeString(input.TAG)
@@ -458,13 +524,41 @@ func TestGCM(t *testing.T) {
 			t.Errorf("VEC %s failed. Failed to decode TAG: %v", input.VEC, err.Error())
 			continue
 		}
-
-		if subtle.ConstantTimeCompare(output[:len(plainText)], cipherText) != 1 {
-			t.Errorf("VEC %s failed. CTX differs: %x != %x", input.VEC, output[:len(output)-16], cipherText)
+		tagAlt, err := hex.DecodeString(input.TAGALT)
+		if err != nil {
+			t.Errorf("VEC %s failed. Failed to decode TAGALT: %v", input.VEC, err.Error())
 			continue
 		}
-		if subtle.ConstantTimeCompare(output[len(plainText):], tag) != 1 {
-			t.Errorf("VEC %s failed. TAG differs: %x != %x", input.VEC, output[len(plainText):], tag)
+
+		ptSize := len(plainText)
+		if chunkSize < ptSize {
+			ptSize = chunkSize
+		}
+		if subtle.ConstantTimeCompare(output[:ptSize], cipherText) != 1 {
+			t.Errorf("VEC %s failed. CTX differs", input.VEC)
+			continue
+		}
+		if subtle.ConstantTimeCompare(output[ptSize:ptSize+16], tag) != 1 {
+			t.Errorf("VEC %s failed. TAG differs: %x != %x", input.VEC, output[ptSize:ptSize+16], tag)
+			continue
+		}
+
+		// check the second chunk, if there is one
+		if len(cipherTextAlt) > 0 {
+			if subtle.ConstantTimeCompare(output[ptSize+16:len(output)-16], cipherTextAlt) != 1 {
+				t.Errorf("VEC %s failed. CTXALT differs: %x != %x", input.VEC, output[ptSize+16:len(output)-16], cipherTextAlt)
+				continue
+			}
+			if subtle.ConstantTimeCompare(output[len(output)-16:], tagAlt) != 1 {
+				t.Errorf("VEC %s failed. TAGALT differs: %x != %x", input.VEC, output[len(output)-16:], tagAlt)
+				continue
+			}
+		}
+
+		// re-read the IV since it might have been modified by the encryption func
+		iv, err = hex.DecodeString(input.IV)
+		if err != nil {
+			t.Errorf("VEC %s failed. Failed to decode IV: %v", input.VEC, err.Error())
 			continue
 		}
 
@@ -481,7 +575,7 @@ func TestGCM(t *testing.T) {
 		}
 
 		if subtle.ConstantTimeCompare(decryptedInput, plainText) != 1 {
-			t.Errorf("VEC %s failed. PTX differs: %x != %x", input.VEC, decryptedInput, plainText)
+			t.Errorf("VEC %s failed. PTX differs", input.VEC)
 			continue
 		}
 	}
