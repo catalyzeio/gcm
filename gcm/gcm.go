@@ -27,6 +27,9 @@ func EncryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 	}
 	defer inFile.Close()
 
+	if err = os.Remove(outFilePath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
 	outFile, err := os.OpenFile(outFilePath, os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return err
@@ -43,17 +46,19 @@ func EncryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 	}
 
 	chunk := make([]byte, chunkSize)
+	written := false
 	for {
-		eof := false
 		read, err := inFile.Read(chunk)
-		if err == io.EOF {
-			eof = true
-		} else if err != nil {
+		// ensure we have written at least one chunk before breaking
+		if written && err == io.EOF {
+			break
+		} else if err != nil && err != io.EOF {
 			return err
 		}
 		encrChunk := gcm.Seal(nil, iv, chunk[:read], aad)
 		outFile.Write(encrChunk)
-		if read < chunkSize || eof {
+		written = true
+		if read < chunkSize {
 			break
 		}
 		incrementIV(iv)
@@ -73,6 +78,9 @@ func DecryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 	}
 	defer inFile.Close()
 
+	if err = os.Remove(outFilePath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
 	outFile, err := os.OpenFile(outFilePath, os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return err
@@ -88,13 +96,14 @@ func DecryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 		return err
 	}
 
+	written := false
 	chunk := make([]byte, chunkSize+gcm.Overhead())
 	for {
-		eof := false
 		read, err := inFile.Read(chunk)
-		if err == io.EOF {
-			eof = true
-		} else if err != nil {
+		// ensure we have written at least one chunk before breaking
+		if written && err == io.EOF {
+			break
+		} else if err != nil && err != io.EOF {
 			return err
 		}
 		decrChunk, err := gcm.Open(nil, iv, chunk[:read], aad)
@@ -102,7 +111,8 @@ func DecryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 			return err
 		}
 		outFile.Write(decrChunk)
-		if read < chunkSize || eof {
+		written = true
+		if read < chunkSize+gcm.Overhead() {
 			break
 		}
 		incrementIV(iv)
