@@ -65,6 +65,52 @@ func EncryptFile(inFilePath, outFilePath string, key, givenIV, aad []byte) error
 	return nil
 }
 
+// EncryptFileReader is an io.Reader interface that encrypts a file
+type EncryptFileReader struct {
+	file *os.File
+	gcm  cipher.AEAD
+	aad  []byte
+	iv   []byte
+}
+
+// Read is the encrypting stream method
+func (efr *EncryptFileReader) Read(p []byte) (int, error) {
+	read, err := efr.file.Read(p)
+	if read > 0 {
+		efr.gcm.Seal(p, efr.iv, p[:read], efr.aad)
+		incrementIV(efr.iv)
+	}
+	return read, err
+}
+
+// NewEncryptFileReader creates an instance of EncryptFileReader
+func NewEncryptFileReader(inFilePath string, key, givenIV, aad []byte) (*EncryptFileReader, error) {
+	efr := new(EncryptFileReader)
+	var err error
+	if _, err = os.Stat(inFilePath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("A file does not exist at %s", inFilePath)
+	}
+	// copy the IV since it will potentially be incremented
+	efr.iv = make([]byte, len(givenIV))
+	copy(efr.iv, givenIV)
+
+	efr.file, err = os.Open(inFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	aes, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	efr.gcm, err = cipher.NewGCMWithNonceSize(aes, len(efr.iv))
+	if err != nil {
+		return nil, err
+	}
+	return efr, nil
+}
+
 // DecryptFile decrypts the file at the specified path using GCM
 func DecryptFile(inFilePath, outFilePath string, key, givenIV, aad []byte) error {
 	if _, err := os.Stat(inFilePath); os.IsNotExist(err) {
