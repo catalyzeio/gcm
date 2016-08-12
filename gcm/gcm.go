@@ -111,9 +111,6 @@ type EncryptFileReader struct {
 // Read is the encrypting stream method
 func (efr *EncryptFileReader) Read(p []byte) (int, error) {
 	lenP := len(p)
-	if lenP == 0 {
-		return 0, nil
-	}
 	var read int
 	var err error
 	if efr.leftOver == nil && !efr.doneReading {
@@ -293,9 +290,6 @@ type DecryptFileWriterAt struct {
 // WriteAt is the decrypting stream method
 func (dfw *DecryptFileWriterAt) WriteAt(p []byte, off int64) (int, error) {
 	lenP := len(p)
-	if lenP == 0 {
-		return 0, nil
-	}
 	dfw.writeLock.Lock()
 	defer dfw.writeLock.Unlock()
 	if off == dfw.nextOff {
