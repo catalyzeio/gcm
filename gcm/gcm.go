@@ -339,7 +339,7 @@ func (dfw *DecryptFileWriterAt) copyToChunk(p []byte, pLen int) error {
 	}
 	pLen -= copied
 	if pLen > 0 {
-		return dfw.copyToChunk(p[:copied], pLen)
+		return dfw.copyToChunk(p[copied:], pLen)
 	}
 	return nil
 }
