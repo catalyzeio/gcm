@@ -65,11 +65,12 @@ type EncryptFileReader struct {
 // Read is the encrypting stream method. It reads from its file
 // at a particular chunk size, which may be bigger or smaller than
 // the buffer passed to this Read method. It then decrypts this fixed-size
-// chunk read into a member and copies as much of this saved buffer
-// into the passed argument as it can. If it cannot copy the entire
-// buffer it passes the remainder in the subsequent call(s). If it
-// copies the entirety of the decrypted buffer, the buffer is set to nil
-// and the process is repeated.
+// chunk read into a member (leftOver) and copies as much of this saved buffer
+// into the passed buffer-argument as it can. If it cannot copy the entire
+// "leftOver" buffer it passes the remainder in the subsequent call(s). When
+// "leftOver" buffer reaches 0 a chunk read happens again, unitl the file
+// returns an io.EOF. This Read method will return its io.EOF when it has
+// received an io.EOF from its file AND the "leftOver" buffer reaches 0.
 func (efr *EncryptFileReader) Read(p []byte) (int, error) {
 	efr.readLock.Lock()
 	defer efr.readLock.Unlock()
@@ -243,7 +244,7 @@ func (dfw *DecryptFileWriterAt) Close() error {
 		if err == nil {
 			return err2
 		}
-		return fmt.Errorf("%s\n%s", err, err2)
+		return fmt.Errorf("%v\n%v", err, err2)
 	}
 	return err
 }
