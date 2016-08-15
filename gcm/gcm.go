@@ -73,10 +73,8 @@ type EncryptFileReader struct {
 func (efr *EncryptFileReader) Read(p []byte) (int, error) {
 	efr.readLock.Lock()
 	defer efr.readLock.Unlock()
-	var read int
-	var err error
 	if !efr.doneReading && len(efr.leftOver) == 0 {
-		read, err = efr.file.Read(efr.chunk)
+		read, err := efr.file.Read(efr.chunk)
 		if err != nil && err != io.EOF {
 			return 0, err
 		}
@@ -254,7 +252,9 @@ func (dfw *DecryptFileWriterAt) copyToChunk(p []byte, lenP int) error {
 	copied := copy(dfw.chunk[dfw.chunkCopied:], p)
 	dfw.chunkCopied += copied
 	if dfw.chunkCopied == dfw.chunkL {
-		dfw.flushChunk()
+		if err := dfw.flushChunk(); err != nil {
+			return err
+		}
 	}
 	lenP -= copied
 	if lenP > 0 {
