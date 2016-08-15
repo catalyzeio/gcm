@@ -231,15 +231,21 @@ func decryptFileOutOfOrder(inFilePath, outFilePath string, key, givenIV, aad []b
 		_, err := dfw.WriteAt(offArr[0].buf, 0)
 		return err
 	}
-	for i := 1; i < lenOffArr; i++ {
-		if i%2 > 0 {
-			if _, err := dfw.WriteAt(offArr[i].buf, offArr[i].off); err != nil {
-				return err
-			}
-			prev := i - 1
-			if _, err := dfw.WriteAt(offArr[prev].buf, offArr[prev].off); err != nil {
-				return err
-			}
+	i := 1
+	for ; i < lenOffArr; i += 2 {
+		if _, err := dfw.WriteAt(offArr[i].buf, offArr[i].off); err != nil {
+			return err
+		}
+		prev := i - 1
+		if _, err := dfw.WriteAt(offArr[prev].buf, offArr[prev].off); err != nil {
+			return err
+		}
+	}
+	//handle dangling odd case
+	if lenOffArr%2 > 0 {
+		i--
+		if _, err := dfw.WriteAt(offArr[i].buf, offArr[i].off); err != nil {
+			return err
 		}
 	}
 	return nil
