@@ -177,6 +177,74 @@ func DecryptFile(inFilePath, outFilePath string, key, givenIV, aad []byte) error
 	return nil
 }
 
+// for testing purposes
+func decryptFileOutOfOrder(inFilePath, outFilePath string, key, givenIV, aad []byte) error {
+	dfw, err := NewDecryptFileWriterAt(outFilePath, key, givenIV, aad)
+	defer dfw.Close()
+	if err != nil {
+		return err
+	}
+	inFile, err := os.Open(inFilePath)
+	if err != nil {
+		return err
+	}
+	defer inFile.Close()
+	written := false
+	chunk := make([]byte, chunkSize)
+	var off int64
+	type offBuff struct {
+		off int64
+		buf []byte
+	}
+	var offArr []offBuff
+	for {
+		read, err := inFile.Read(chunk)
+		if err != nil && err != io.EOF {
+			return err
+		}
+		if read > 0 || !written {
+			buf := make([]byte, read)
+			copy(buf, chunk[:read])
+			offArr = append(offArr, offBuff{off, buf})
+			off += int64(read)
+			written = true
+		}
+		if err == io.EOF {
+			break
+		}
+	}
+	lenOffArr := len(offArr)
+	// let's make sure there's at least two elements
+	if lenOffArr == 1 {
+		buf := offArr[0].buf
+		lenBuf := len(buf)
+		if lenBuf > 0 {
+			mid := lenBuf/2 + 1
+			oB2 := offBuff{int64(mid), buf[mid:]}
+			offArr[0].buf = buf[:mid]
+			offArr = append(offArr, oB2)
+		}
+	}
+	lenOffArr = len(offArr)
+	// it's a zero sized buffer just write it
+	if lenOffArr == 1 {
+		_, err := dfw.WriteAt(offArr[0].buf, 0)
+		return err
+	}
+	for i := 1; i < lenOffArr; i++ {
+		if i%2 > 0 {
+			if _, err := dfw.WriteAt(offArr[i].buf, offArr[i].off); err != nil {
+				return err
+			}
+			prev := i - 1
+			if _, err := dfw.WriteAt(offArr[prev].buf, offArr[prev].off); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // DecryptFileWriterAt is an io.WriterAt and io.Closer interfaces that decrypts
 // WriterAt calls to a file.
 type DecryptFileWriterAt struct {

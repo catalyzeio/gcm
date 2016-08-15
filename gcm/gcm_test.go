@@ -433,8 +433,10 @@ var testData = []GCMInput{
 func TestGCM(t *testing.T) {
 	for _, input := range testData {
 		inputFileName := fmt.Sprintf("input%s.dat", input.VEC)
+		inputFileNameOutOfOrder := fmt.Sprintf("inputOOOrder%s.dat", input.VEC)
 		outputFileName := fmt.Sprintf("output%s.dat", input.VEC)
 		defer os.Remove(inputFileName)
+		defer os.Remove(inputFileNameOutOfOrder)
 		defer os.Remove(outputFileName)
 
 		key, err := hex.DecodeString(input.KEY)
@@ -571,5 +573,23 @@ func TestGCM(t *testing.T) {
 			t.Errorf("VEC %s failed. PTX differs", input.VEC)
 			continue
 		}
+
+		err = decryptFileOutOfOrder(outputFileName, inputFileNameOutOfOrder, key, iv, aad)
+		if err != nil {
+			t.Errorf("VEC %s concurrent decryption failed: %v", input.VEC, err.Error())
+			continue
+		}
+
+		decryptedInput, err = ioutil.ReadFile(inputFileNameOutOfOrder)
+		if err != nil {
+			t.Errorf("VEC %s failed. Failed to read concurrently decrypted input file: %v", input.VEC, err.Error())
+			continue
+		}
+
+		if subtle.ConstantTimeCompare(decryptedInput, plainText) != 1 {
+			t.Errorf("VEC %s failed. Concurrently made PTX differs", input.VEC)
+			continue
+		}
+
 	}
 }
