@@ -3,10 +3,8 @@ package gcm
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"fmt"
 	"io"
 	"os"
-	"sync"
 )
 
 const (
@@ -18,8 +16,15 @@ const (
 
 // EncryptFile encrypts the file at the specified path using GCM.
 func EncryptFile(inFilePath, outFilePath string, key, givenIV, aad []byte) error {
-	efr, err := NewEncryptFileReader(inFilePath, key, givenIV, aad)
-	defer efr.Close()
+	if _, err := os.Stat(inFilePath); os.IsNotExist(err) {
+		return err
+	}
+	file, err := os.Open(inFilePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	efr, err := NewEncryptFileReader(file, key, givenIV, aad)
 	if err != nil {
 		return err
 	}
@@ -48,10 +53,10 @@ func EncryptFile(inFilePath, outFilePath string, key, givenIV, aad []byte) error
 	return nil
 }
 
-// EncryptFileReader is an io.ReadCloser interface that encrypts a file
-// into Read calls.
+// EncryptFileReader is an io.Reader interface that encrypts its
+// read calls into another io.Reader interface
 type EncryptFileReader struct {
-	file        *os.File
+	reader      io.Reader
 	gcm         cipher.AEAD
 	aad         []byte
 	iv          []byte
@@ -59,23 +64,20 @@ type EncryptFileReader struct {
 	chunk       []byte
 	doneReading bool
 	written     bool
-	readLock    *sync.Mutex
 }
 
-// Read is the encrypting stream method. It reads from its file
+// Read is the encrypting stream method. It reads from its io.Reader
 // at a particular chunk size, which may be bigger or smaller than
 // the buffer passed to this Read method. It then decrypts this fixed-size
 // chunk read into a member (leftOver) and copies as much of this saved buffer
 // into the passed buffer-argument as it can. If it cannot copy the entire
 // "leftOver" buffer it passes the remainder in the subsequent call(s). When
-// "leftOver" buffer reaches 0 a chunk read happens again, unitl the file
+// "leftOver" buffer reaches 0 a chunk read happens again, unitl the reader
 // returns an io.EOF. This Read method will return its io.EOF when it has
 // received an io.EOF from its file AND the "leftOver" buffer reaches 0.
 func (efr *EncryptFileReader) Read(p []byte) (int, error) {
-	efr.readLock.Lock()
-	defer efr.readLock.Unlock()
 	if !efr.doneReading && len(efr.leftOver) == 0 {
-		read, err := efr.file.Read(efr.chunk)
+		read, err := efr.reader.Read(efr.chunk)
 		if err != nil && err != io.EOF {
 			return 0, err
 		}
@@ -96,32 +98,14 @@ func (efr *EncryptFileReader) Read(p []byte) (int, error) {
 	return copied, nil
 }
 
-// Close closes the file.
-func (efr *EncryptFileReader) Close() error {
-	efr.readLock.Lock()
-	defer efr.readLock.Unlock()
-	// Close can handle nil calls
-	err := efr.file.Close()
-	efr.file = nil
-	return err
-}
-
 // NewEncryptFileReader creates an instance of EncryptFileReader, which implements io.ReaderCloser,
-// which encrypts its given file in chunks as its Read method is called.
-func NewEncryptFileReader(inFilePath string, key, givenIV, aad []byte) (*EncryptFileReader, error) {
+// which encrypts its given io.Reader in chunks as its Read method is called.
+func NewEncryptFileReader(reader io.Reader, key, givenIV, aad []byte) (*EncryptFileReader, error) {
 	efr := new(EncryptFileReader)
+	efr.reader = reader
 	efr.chunk = make([]byte, chunkSize)
 	efr.doneReading = false
 	efr.written = false
-	efr.readLock = &sync.Mutex{}
-	var err error
-	if _, err = os.Stat(inFilePath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("A file does not exist at %s", inFilePath)
-	}
-	efr.file, err = os.Open(inFilePath)
-	if err != nil {
-		return nil, err
-	}
 	// make our own copy so that it won't get modified
 	efr.aad = make([]byte, len(aad))
 	copy(efr.aad, aad)
@@ -143,8 +127,11 @@ func NewEncryptFileReader(inFilePath string, key, givenIV, aad []byte) (*Encrypt
 
 // DecryptFile decrypts the file at the specified path using GCM.
 func DecryptFile(inFilePath, outFilePath string, key, givenIV, aad []byte) error {
-	dfw, err := NewDecryptFileWriterAt(outFilePath, key, givenIV, aad)
-	defer dfw.Close()
+	outFile, err := os.OpenFile(outFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+	if err != nil {
+		return err
+	}
+	dfw, err := NewDecryptFileWriteCloser(outFile, key, givenIV, aad)
 	if err != nil {
 		return err
 	}
@@ -155,7 +142,6 @@ func DecryptFile(inFilePath, outFilePath string, key, givenIV, aad []byte) error
 	defer inFile.Close()
 	written := false
 	chunk := make([]byte, chunkSize)
-	var off int64
 	for {
 		read, err := inFile.Read(chunk)
 		if err != nil && err != io.EOF {
@@ -163,134 +149,84 @@ func DecryptFile(inFilePath, outFilePath string, key, givenIV, aad []byte) error
 		}
 		// ensure we have written at least one chunk before breaking
 		if read > 0 || !written {
-			_, err := dfw.WriteAt(chunk[:read], off)
+			_, err := dfw.Write(chunk[:read])
 			if err != nil {
 				return err
 			}
-			off += int64(read)
 			written = true
 		}
 		if err == io.EOF {
 			break
 		}
 	}
-	return nil
+	return dfw.Close()
 }
 
-// DecryptFileWriterAt is an io.WriterAt and io.Closer interfaces that decrypts
-// WriterAt calls to a file.
-type DecryptFileWriterAt struct {
-	file        *os.File
+// DecryptFileWriteCloser is an io.WriteCloser interface that decrypts
+// it Write calls into another io.WriteCloser interface
+type DecryptFileWriteCloser struct {
+	writeCloser io.WriteCloser
+	written     bool
 	gcm         cipher.AEAD
 	aad         []byte
 	iv          []byte
 	chunk       []byte
 	chunkL      int
 	chunkCopied int
-	nextOff     int64
-	bufferMap   map[int64][]byte
-	writeLock   *sync.Mutex
-	written     bool
 }
 
-// WriteAt is the decrypting stream method for DecryptFileWriterAt.
-// It will always return the bytes written as the length of the passed buffer. This is a lie.
-// It works by saving byte chunks in a map of offsets as a moving buffer,
-// keeping track of a partial view of the buffer.
-// When it has a complete set of offsets that it can write, without gaps,
-// it copies the offsets to a chunk buffer, a fixed size buffer, required
-// for correct writes to the gcm.Open function. When this fixed size buffer
-// is filled it is decrypted and the resulting decryption is written
-// to the file. When the DecryptFileWriterAt Close function is called,
-// any remaining buffer in the "chunk" buffer is decrypted and written
-// to the file, which is then closed.
-func (dfw *DecryptFileWriterAt) WriteAt(p []byte, off int64) (int, error) {
-	lenP := len(p)
-	dfw.writeLock.Lock()
-	defer dfw.writeLock.Unlock()
-	if off == dfw.nextOff {
-		// This doesn't need to be copied, because we know it's about to get copied to
-		// the chunk buffer.
-		dfw.bufferMap[off] = p
-		for buf, ok := dfw.bufferMap[dfw.nextOff]; ok; buf, ok = dfw.bufferMap[dfw.nextOff] {
-			lenB := len(buf)
-			err := dfw.copyToChunk(buf, lenB)
-			if err != nil {
-				return 0, err
-			}
-			delete(dfw.bufferMap, dfw.nextOff)
-			dfw.nextOff += int64(lenB)
-		}
-	} else {
-		dfw.bufferMap[off] = make([]byte, lenP)
-		copy(dfw.bufferMap[off], p)
-	}
-	return lenP, nil
-}
-
-// Close flushes any remaining buffer and closes the input file.
-func (dfw *DecryptFileWriterAt) Close() error {
-	dfw.writeLock.Lock()
-	defer dfw.writeLock.Unlock()
-	var err error
-	var err2 error
-	if dfw.chunkCopied > 0 || !dfw.written {
-		err = dfw.flushChunk()
-	}
-	// Close can handle nil calls
-	err2 = dfw.file.Close()
-	dfw.file = nil
-	if err2 != nil {
-		if err == nil {
-			return err2
-		}
-		return fmt.Errorf("%v\n%v", err, err2)
-	}
-	return err
-}
-
-func (dfw *DecryptFileWriterAt) copyToChunk(p []byte, lenP int) error {
+// Write copies the passed write buffer into a fixed chunk size
+// that GCM accepts. The bytes are only flushed to the underlying
+// io.WriteCloser when the chunk buffer reaches this size OR on
+// the last Write call (i.e. the remaining, last bytes).
+func (dfw *DecryptFileWriteCloser) Write(p []byte) (int, error) {
 	copied := copy(dfw.chunk[dfw.chunkCopied:], p)
 	dfw.chunkCopied += copied
 	if dfw.chunkCopied == dfw.chunkL {
 		if err := dfw.flushChunk(); err != nil {
-			return err
+			return copied, err
 		}
 	}
-	lenP -= copied
-	if lenP > 0 {
-		return dfw.copyToChunk(p[copied:], lenP)
+	pRemainder := p[copied:]
+	if len(pRemainder) > 0 {
+		tmp, err := dfw.Write(pRemainder)
+		return tmp + copied, err
+	}
+	return copied, nil
+}
+
+// Close flushes any remaining bytes that have not been written to
+// the underlying io.WriteCloser, and closes the underlying io.WriteCloser
+func (dfw *DecryptFileWriteCloser) Close() error {
+	if err := dfw.flushChunk(); err != nil {
+		return err
+	}
+	return dfw.writeCloser.Close()
+}
+
+func (dfw *DecryptFileWriteCloser) flushChunk() error {
+	if dfw.chunkCopied > 0 || !dfw.written {
+		decrChunk, err := dfw.gcm.Open(nil, dfw.iv, dfw.chunk[:dfw.chunkCopied], dfw.aad)
+		if err != nil {
+			return err
+		}
+		if _, err := dfw.writeCloser.Write(decrChunk); err != nil {
+			return err
+		}
+		incrementIV(dfw.iv)
+		dfw.chunkCopied = 0
+		dfw.written = true
 	}
 	return nil
 }
 
-func (dfw *DecryptFileWriterAt) flushChunk() error {
-	decrChunk, err := dfw.gcm.Open(nil, dfw.iv, dfw.chunk[:dfw.chunkCopied], dfw.aad)
-	if err != nil {
-		return err
-	}
-	if _, err := dfw.file.Write(decrChunk); err != nil {
-		return err
-	}
-	dfw.written = true
-	dfw.chunkCopied = 0
-	incrementIV(dfw.iv)
-	return nil
-}
-
-// NewDecryptFileWriterAt creates an instance of NewDecryptFileWriterAt, which decrypts
-// WrittenAt chunks into the given file path.
-func NewDecryptFileWriterAt(outFilePath string, key, givenIV, aad []byte) (*DecryptFileWriterAt, error) {
-	dfw := new(DecryptFileWriterAt)
-	dfw.nextOff = 0
-	dfw.writeLock = &sync.Mutex{}
-	dfw.bufferMap = make(map[int64][]byte)
+// NewDecryptFileWriteCloser creates an instance of DecryptFileWriteCloser, which decrypts
+// io.Writer chunks into the given io.Writer. The type is a Closer, because it must be closed to
+// Write all data its been given (i.e. told when the "last" write is happening).
+func NewDecryptFileWriteCloser(writeCloser io.WriteCloser, key, givenIV, aad []byte) (*DecryptFileWriteCloser, error) {
+	dfw := new(DecryptFileWriteCloser)
+	dfw.writeCloser = writeCloser
 	dfw.written = false
-	var err error
-	dfw.file, err = os.OpenFile(outFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
-	if err != nil {
-		return nil, err
-	}
 	// make our own copy so that it won't get modified
 	dfw.aad = make([]byte, len(aad))
 	copy(dfw.aad, aad)
