@@ -24,7 +24,7 @@ func EncryptFile(inFilePath, outFilePath string, key, givenIV, aad []byte) error
 		return err
 	}
 	defer file.Close()
-	efr, err := NewEncryptFileReader(file, key, givenIV, aad)
+	efr, err := NewEncryptReader(file, key, givenIV, aad)
 	if err != nil {
 		return err
 	}
@@ -53,9 +53,9 @@ func EncryptFile(inFilePath, outFilePath string, key, givenIV, aad []byte) error
 	return nil
 }
 
-// EncryptFileReader is an io.Reader interface that encrypts its
+// EncryptReader is an io.Reader interface that encrypts its
 // read calls into another io.Reader interface
-type EncryptFileReader struct {
+type EncryptReader struct {
 	reader      io.Reader
 	gcm         cipher.AEAD
 	aad         []byte
@@ -75,7 +75,7 @@ type EncryptFileReader struct {
 // "leftOver" buffer reaches 0 a chunk read happens again, unitl the reader
 // returns an io.EOF. This Read method will return its io.EOF when it has
 // received an io.EOF from its file AND the "leftOver" buffer reaches 0.
-func (efr *EncryptFileReader) Read(p []byte) (int, error) {
+func (efr *EncryptReader) Read(p []byte) (int, error) {
 	if !efr.doneReading && len(efr.leftOver) == 0 {
 		read, err := efr.reader.Read(efr.chunk)
 		if err != nil && err != io.EOF {
@@ -98,10 +98,10 @@ func (efr *EncryptFileReader) Read(p []byte) (int, error) {
 	return copied, nil
 }
 
-// NewEncryptFileReader creates an instance of EncryptFileReader, which implements io.ReaderCloser,
+// NewEncryptReader creates an instance of EncryptReader, which implements io.ReaderCloser,
 // which encrypts its given io.Reader in chunks as its Read method is called.
-func NewEncryptFileReader(reader io.Reader, key, givenIV, aad []byte) (*EncryptFileReader, error) {
-	efr := new(EncryptFileReader)
+func NewEncryptReader(reader io.Reader, key, givenIV, aad []byte) (*EncryptReader, error) {
+	efr := new(EncryptReader)
 	efr.reader = reader
 	efr.chunk = make([]byte, chunkSize)
 	efr.doneReading = false
@@ -131,7 +131,7 @@ func DecryptFile(inFilePath, outFilePath string, key, givenIV, aad []byte) error
 	if err != nil {
 		return err
 	}
-	dfw, err := NewDecryptFileWriteCloser(outFile, key, givenIV, aad)
+	dfw, err := NewDecryptWriteCloser(outFile, key, givenIV, aad)
 	if err != nil {
 		return err
 	}
@@ -162,9 +162,9 @@ func DecryptFile(inFilePath, outFilePath string, key, givenIV, aad []byte) error
 	return dfw.Close()
 }
 
-// DecryptFileWriteCloser is an io.WriteCloser interface that decrypts
+// DecryptWriteCloser is an io.WriteCloser interface that decrypts
 // it Write calls into another io.WriteCloser interface
-type DecryptFileWriteCloser struct {
+type DecryptWriteCloser struct {
 	writeCloser io.WriteCloser
 	written     bool
 	gcm         cipher.AEAD
@@ -179,7 +179,7 @@ type DecryptFileWriteCloser struct {
 // that GCM accepts. The bytes are only flushed to the underlying
 // io.WriteCloser when the chunk buffer reaches this size OR on
 // the last Write call (i.e. the remaining, last bytes).
-func (dfw *DecryptFileWriteCloser) Write(p []byte) (int, error) {
+func (dfw *DecryptWriteCloser) Write(p []byte) (int, error) {
 	copied := copy(dfw.chunk[dfw.chunkCopied:], p)
 	dfw.chunkCopied += copied
 	if dfw.chunkCopied == dfw.chunkL {
@@ -197,14 +197,14 @@ func (dfw *DecryptFileWriteCloser) Write(p []byte) (int, error) {
 
 // Close flushes any remaining bytes that have not been written to
 // the underlying io.WriteCloser, and closes the underlying io.WriteCloser
-func (dfw *DecryptFileWriteCloser) Close() error {
+func (dfw *DecryptWriteCloser) Close() error {
 	if err := dfw.flushChunk(); err != nil {
 		return err
 	}
 	return dfw.writeCloser.Close()
 }
 
-func (dfw *DecryptFileWriteCloser) flushChunk() error {
+func (dfw *DecryptWriteCloser) flushChunk() error {
 	if dfw.chunkCopied > 0 || !dfw.written {
 		decrChunk, err := dfw.gcm.Open(nil, dfw.iv, dfw.chunk[:dfw.chunkCopied], dfw.aad)
 		if err != nil {
@@ -220,11 +220,11 @@ func (dfw *DecryptFileWriteCloser) flushChunk() error {
 	return nil
 }
 
-// NewDecryptFileWriteCloser creates an instance of DecryptFileWriteCloser, which decrypts
+// NewDecryptWriteCloser creates an instance of DecryptWriteCloser, which decrypts
 // io.Writer chunks into the given io.Writer. The type is a Closer, because it must be closed to
 // Write all data its been given (i.e. told when the "last" write is happening).
-func NewDecryptFileWriteCloser(writeCloser io.WriteCloser, key, givenIV, aad []byte) (*DecryptFileWriteCloser, error) {
-	dfw := new(DecryptFileWriteCloser)
+func NewDecryptWriteCloser(writeCloser io.WriteCloser, key, givenIV, aad []byte) (*DecryptWriteCloser, error) {
+	dfw := new(DecryptWriteCloser)
 	dfw.writeCloser = writeCloser
 	dfw.written = false
 	// make our own copy so that it won't get modified
