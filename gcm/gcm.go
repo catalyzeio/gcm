@@ -79,8 +79,10 @@ type Reader struct {
 	iv  []byte
 	aad []byte
 
+	sealed []byte
+	off    int
+
 	buff []byte
-	off  int
 }
 
 func NewReader(src io.Reader, key, iv, aad []byte) (*Reader, error) {
@@ -104,7 +106,9 @@ func NewReader(src io.Reader, key, iv, aad []byte) (*Reader, error) {
 		iv:  ivCopy,
 		aad: aad,
 
-		buff: make([]byte, 0, chunkSize+gcm.Overhead()),
+		sealed: []byte{},
+
+		buff: make([]byte, chunkSize),
 	}, nil
 }
 
@@ -113,34 +117,34 @@ func (r *Reader) Read(p []byte) (int, error) {
 	off := 0
 	for off < n {
 		// encrypt the next chunk if no data available
-		if r.off >= len(r.buff) {
+		if r.off >= len(r.sealed) {
 			if r.eof {
 				return off, io.EOF
 			}
-			if err := r.fill(); err != nil {
+			if err := r.seal(); err != nil {
 				return off, err
 			}
 		}
 		// copy encrypted data from the current chunk
-		read := copy(p[off:], r.buff[r.off:])
+		read := copy(p[off:], r.sealed[r.off:])
 		r.off += read
 		off += read
 	}
 	return off, nil
 }
 
-func (r *Reader) fill() error {
+func (r *Reader) seal() error {
 	// pull in the next chunk from the reader
-	n, err := io.ReadFull(r.src, r.buff[:chunkSize])
+	n, err := io.ReadFull(r.src, r.buff)
 	if err == io.EOF || err == io.ErrUnexpectedEOF {
-		// mark EOF reached for subsequent read attempts
+		// mark EOF reached for subsequent seal attempts
 		r.eof = true
 	} else if err != nil {
 		// some other problem; abort
 		return err
 	}
 	// encrypt this chunk
-	r.buff = r.gcm.Seal(r.buff[:0], r.iv, r.buff[:n], r.aad)
+	r.sealed = r.gcm.Seal(nil, r.iv, r.buff[:n], r.aad)
 	incrementIV(r.iv)
 	r.off = 0
 	return nil
@@ -154,8 +158,8 @@ type Writer struct {
 	iv  []byte
 	aad []byte
 
-	buff []byte
-	off  int
+	sealed []byte
+	off    int
 }
 
 func NewWriter(dst io.WriteCloser, key, iv, aad []byte) (*Writer, error) {
@@ -179,7 +183,7 @@ func NewWriter(dst io.WriteCloser, key, iv, aad []byte) (*Writer, error) {
 		iv:  ivCopy,
 		aad: aad,
 
-		buff: make([]byte, chunkSize+gcm.Overhead()),
+		sealed: make([]byte, chunkSize+gcm.Overhead()),
 	}, nil
 }
 
@@ -188,12 +192,12 @@ func (w *Writer) Write(p []byte) (int, error) {
 	off := 0
 	for off < n {
 		// copy encrypted data into the current chunk
-		written := copy(w.buff[w.off:], p[off:])
+		written := copy(w.sealed[w.off:], p[off:])
 		w.off += written
 		off += written
 		// decrypt if chunk is finished
-		if w.off == cap(w.buff) {
-			if err := w.drain(); err != nil {
+		if w.off == cap(w.sealed) {
+			if err := w.open(); err != nil {
 				return off, err
 			}
 		}
@@ -203,20 +207,19 @@ func (w *Writer) Write(p []byte) (int, error) {
 
 func (w *Writer) Close() error {
 	if w.off > 0 {
-		if err := w.drain(); err != nil {
+		if err := w.open(); err != nil {
 			return err
 		}
 	}
 	return w.dst.Close()
 }
 
-func (w *Writer) drain() error {
-	buff := w.buff
-	buff, err := w.gcm.Open(buff[:0], w.iv, buff[:w.off], w.aad)
+func (w *Writer) open() error {
+	opened, err := w.gcm.Open(nil, w.iv, w.sealed[:w.off], w.aad)
 	if err != nil {
 		return err
 	}
-	if _, err := w.dst.Write(buff); err != nil {
+	if _, err := w.dst.Write(opened); err != nil {
 		return err
 	}
 	incrementIV(w.iv)
