@@ -33,24 +33,8 @@ func EncryptFile(inFilePath, outFilePath string, key, givenIV, aad []byte) error
 		return err
 	}
 	defer outFile.Close()
-	chunk := make([]byte, chunkSize)
-	written := false
-	for {
-		read, err := efr.Read(chunk)
-		if err != nil && err != io.EOF {
-			return err
-		}
-		if read > 0 || !written {
-			if _, err := outFile.Write(chunk[:read]); err != nil {
-				return err
-			}
-			written = true
-		}
-		if err == io.EOF {
-			break
-		}
-	}
-	return nil
+	_, err = io.Copy(outFile, efr)
+	return err
 }
 
 // EncryptReader is an io.Reader interface that encrypts its
@@ -77,17 +61,16 @@ type EncryptReader struct {
 // received an io.EOF from its file AND the "leftOver" buffer reaches 0.
 func (efr *EncryptReader) Read(p []byte) (int, error) {
 	if !efr.doneReading && len(efr.leftOver) == 0 {
-		read, err := efr.reader.Read(efr.chunk)
-		if err != nil && err != io.EOF {
+		read, err := io.ReadFull(efr.reader, efr.chunk)
+		if err != nil && !(err == io.EOF || err == io.ErrUnexpectedEOF) {
 			return 0, err
+		} else if err != nil {
+			efr.doneReading = true
 		}
 		if read > 0 || !efr.written {
 			efr.leftOver = efr.gcm.Seal(nil, efr.iv, efr.chunk[:read], efr.aad)
 			incrementIV(efr.iv)
 			efr.written = true
-		}
-		if err == io.EOF {
-			efr.doneReading = true
 		}
 	}
 	copied := copy(p, efr.leftOver)
@@ -140,24 +123,8 @@ func DecryptFile(inFilePath, outFilePath string, key, givenIV, aad []byte) error
 		return err
 	}
 	defer inFile.Close()
-	written := false
-	chunk := make([]byte, chunkSize)
-	for {
-		read, err := inFile.Read(chunk)
-		if err != nil && err != io.EOF {
-			return err
-		}
-		// ensure we have written at least one chunk before breaking
-		if read > 0 || !written {
-			_, err := dfw.Write(chunk[:read])
-			if err != nil {
-				return err
-			}
-			written = true
-		}
-		if err == io.EOF {
-			break
-		}
+	if _, err := io.Copy(dfw, inFile); err != nil {
+		return err
 	}
 	return dfw.Close()
 }
