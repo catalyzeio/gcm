@@ -33,7 +33,7 @@ func EncryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 	}
 	defer outFile.Close()
 
-	r, err := NewReader(inFile, key, iv, aad)
+	r, err := NewEncryptReader(inFile, key, iv, aad)
 	if err != nil {
 		return err
 	}
@@ -60,7 +60,7 @@ func DecryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 	}
 	defer outFile.Close()
 
-	w, err := NewWriter(outFile, key, iv, aad)
+	w, err := NewDecryptWriter(outFile, key, iv, aad)
 	if err != nil {
 		return err
 	}
@@ -71,7 +71,7 @@ func DecryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 }
 
 // Wraps data from an io.Reader in an encrypted GCM data stream.
-type Reader struct {
+type EncryptReader struct {
 	src io.Reader
 	eof bool
 
@@ -85,7 +85,7 @@ type Reader struct {
 	buff []byte
 }
 
-func NewReader(src io.Reader, key, iv, aad []byte) (*Reader, error) {
+func NewEncryptReader(src io.Reader, key, iv, aad []byte) (*EncryptReader, error) {
 	// copy the IV since it will be incremented
 	ivCopy := make([]byte, len(iv))
 	copy(ivCopy, iv)
@@ -99,7 +99,7 @@ func NewReader(src io.Reader, key, iv, aad []byte) (*Reader, error) {
 		return nil, err
 	}
 
-	return &Reader{
+	return &EncryptReader{
 		src: src,
 
 		gcm: gcm,
@@ -112,7 +112,7 @@ func NewReader(src io.Reader, key, iv, aad []byte) (*Reader, error) {
 	}, nil
 }
 
-func (r *Reader) Read(p []byte) (int, error) {
+func (r *EncryptReader) Read(p []byte) (int, error) {
 	n := len(p)
 	off := 0
 	for off < n {
@@ -133,7 +133,7 @@ func (r *Reader) Read(p []byte) (int, error) {
 	return off, nil
 }
 
-func (r *Reader) seal() error {
+func (r *EncryptReader) seal() error {
 	// pull in the next chunk from the reader
 	n, err := io.ReadFull(r.src, r.buff)
 	if err == io.EOF || err == io.ErrUnexpectedEOF {
@@ -151,7 +151,7 @@ func (r *Reader) seal() error {
 }
 
 // Unwraps an encrypted GCM data to the given io.Writer stream.
-type Writer struct {
+type DecryptWriter struct {
 	dst io.WriteCloser
 
 	gcm cipher.AEAD
@@ -162,7 +162,7 @@ type Writer struct {
 	off    int
 }
 
-func NewWriter(dst io.WriteCloser, key, iv, aad []byte) (*Writer, error) {
+func NewDecryptWriter(dst io.WriteCloser, key, iv, aad []byte) (*DecryptWriter, error) {
 	// copy the IV since it will be incremented
 	ivCopy := make([]byte, len(iv))
 	copy(ivCopy, iv)
@@ -176,7 +176,7 @@ func NewWriter(dst io.WriteCloser, key, iv, aad []byte) (*Writer, error) {
 		return nil, err
 	}
 
-	return &Writer{
+	return &DecryptWriter{
 		dst: dst,
 
 		gcm: gcm,
@@ -187,7 +187,7 @@ func NewWriter(dst io.WriteCloser, key, iv, aad []byte) (*Writer, error) {
 	}, nil
 }
 
-func (w *Writer) Write(p []byte) (int, error) {
+func (w *DecryptWriter) Write(p []byte) (int, error) {
 	n := len(p)
 	off := 0
 	for off < n {
@@ -205,7 +205,7 @@ func (w *Writer) Write(p []byte) (int, error) {
 	return off, nil
 }
 
-func (w *Writer) Close() error {
+func (w *DecryptWriter) Close() error {
 	if w.off > 0 {
 		if err := w.open(); err != nil {
 			return err
@@ -214,7 +214,7 @@ func (w *Writer) Close() error {
 	return w.dst.Close()
 }
 
-func (w *Writer) open() error {
+func (w *DecryptWriter) open() error {
 	opened, err := w.gcm.Open(nil, w.iv, w.sealed[:w.off], w.aad)
 	if err != nil {
 		return err
