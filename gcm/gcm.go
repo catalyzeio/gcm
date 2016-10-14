@@ -98,7 +98,6 @@ func NewEncryptReader(src io.Reader, key, iv, aad []byte) (*EncryptReader, error
 	if err != nil {
 		return nil, err
 	}
-
 	return &EncryptReader{
 		src: src,
 
@@ -131,6 +130,14 @@ func (r *EncryptReader) Read(p []byte) (int, error) {
 		off += read
 	}
 	return off, nil
+}
+
+func (r *EncryptReader) CalculateTotalSize(size int) int {
+	parts := size / chunkSize
+	if size%chunkSize > 0 {
+		parts++
+	}
+	return r.gcm.Overhead()*parts + size
 }
 
 func (r *EncryptReader) seal() error {
