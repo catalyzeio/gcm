@@ -17,21 +17,31 @@ const (
 
 // EncryptFile encrypts the file at the specified path using GCM.
 func EncryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
-	if _, err := os.Stat(inFilePath); os.IsNotExist(err) {
-		return fmt.Errorf("A file does not exist at %s", inFilePath)
+	var inFile *os.File
+	var outFile *os.File
+	var err error
+	if inFilePath == "" {
+		inFile = os.Stdin
+	} else {
+		if _, err = os.Stat(inFilePath); os.IsNotExist(err) {
+			return fmt.Errorf("A file does not exist at %s", inFilePath)
+		}
+		inFile, err = os.Open(inFilePath)
+		if err != nil {
+			return err
+		}
+		defer inFile.Close()
 	}
 
-	inFile, err := os.Open(inFilePath)
-	if err != nil {
-		return err
+	if outFilePath == "" {
+		outFile = os.Stdout
+	} else {
+		outFile, err = os.OpenFile(outFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+		if err != nil {
+			return err
+		}
+		defer outFile.Close()
 	}
-	defer inFile.Close()
-
-	outFile, err := os.OpenFile(outFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
-	if err != nil {
-		return err
-	}
-	defer outFile.Close()
 
 	r, err := NewEncryptReader(inFile, key, iv, aad)
 	if err != nil {
@@ -44,21 +54,32 @@ func EncryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
 
 // DecryptFile decrypts the file at the specified path using GCM.
 func DecryptFile(inFilePath, outFilePath string, key, iv, aad []byte) error {
-	if _, err := os.Stat(inFilePath); os.IsNotExist(err) {
-		return fmt.Errorf("A file does not exist at %s", inFilePath)
+	var inFile *os.File
+	var outFile *os.File
+	var err error
+	if inFilePath == "" {
+		inFile = os.Stdin
+	} else {
+		if _, err = os.Stat(inFilePath); os.IsNotExist(err) {
+			return fmt.Errorf("A file does not exist at %s", inFilePath)
+		}
+
+		inFile, err = os.Open(inFilePath)
+		if err != nil {
+			return err
+		}
+		defer inFile.Close()
 	}
 
-	inFile, err := os.Open(inFilePath)
-	if err != nil {
-		return err
+	if outFilePath == "" {
+		outFile = os.Stdout
+	} else {
+		outFile, err = os.OpenFile(outFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+		if err != nil {
+			return err
+		}
+		defer outFile.Close()
 	}
-	defer inFile.Close()
-
-	outFile, err := os.OpenFile(outFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
-	if err != nil {
-		return err
-	}
-	defer outFile.Close()
 
 	w, err := NewDecryptWriteCloser(outFile, key, iv, aad)
 	if err != nil {

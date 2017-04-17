@@ -30,8 +30,8 @@ func main() {
 	flag.BoolVar(&decrypt, "d", false, "Decrypt the given file")
 	flag.StringVar(&keyString, "K", "", "The hex encoded key")
 	flag.StringVar(&ivString, "iv", "", "The hex encoded IV")
-	flag.StringVar(&inputPath, "in", "", "The input file")
-	flag.StringVar(&outputPath, "out", "", "The output file")
+	flag.StringVar(&inputPath, "in", "", "The input file (default stdin)")
+	flag.StringVar(&outputPath, "out", "", "The output file (default stdout)")
 	flag.Parse()
 	checkRequiredFlags()
 	key, err := hex.DecodeString(keyString)
@@ -71,11 +71,5 @@ func checkRequiredFlags() {
 	}
 	if ivString == "" {
 		logger.Fatalln("-iv is required")
-	}
-	if inputPath == "" {
-		logger.Fatalln("-in is required")
-	}
-	if outputPath == "" {
-		logger.Fatalln("-out is required")
 	}
 }
